@@ -1,8 +1,9 @@
-name: Build CatBrowser Windows EXE
+name: Build and Release CatBrowser
 
 on:
   push:
-    branches: [ "main", "master" ]
+    tags:
+      - "v*"
   workflow_dispatch:
 
 jobs:
@@ -25,17 +26,18 @@ jobs:
         $inc = (Get-ChildItem -Path "webview2_sdk" -Filter "include" -Recurse | Select-Object -First 1).FullName
         Write-Output "WEBVIEW2_INC=$inc" >> $env:GITHUB_ENV
 
-    - name: Compile CatBrowser.exe
+    - name: Compile Standalone CatBrowser.exe
       shell: cmd
       run: |
-        g++ main.cpp -o CatBrowser.exe -std=c++14 -DWEBVIEW_WINAPI -Itemp_webview/core/include -Itemp_webview/core/include/webview -I"%WEBVIEW2_INC%" -lshlwapi -lole32 -loleaut32 -luuid -lshell32 -lgdi32 -lversion -lcomctl32 -mwindows 2>&1
-        
-    - name: Upload Executable
-      uses: actions/upload-artifact@v4
+        g++ main.cpp -o CatBrowser.exe -std=c++14 -DWEBVIEW_WINAPI -Itemp_webview/core/include -Itemp_webview/core/include/webview -I"%WEBVIEW2_INC%" -static -static-libgcc -static-libstdc++ -lshlwapi -lole32 -loleaut32 -luuid -lshell32 -lgdi32 -lversion -lcomctl32 -mwindows 2>&1
+
+    - name: Package Release Assets
+      shell: powershell
+      run: |
+        Compress-Archive -Path CatBrowser.exe, cathome.html, sammy.html, sammy_2.png -DestinationPath CatBrowser-v1.0.zip -Force
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
       with:
-        name: CatBrowser-Windows
-        path: |
-          CatBrowser.exe
-          cathome.html
-          sammy.html
-          sammy_2.png
+        files: CatBrowser-v1.0.zip
