@@ -13,10 +13,6 @@ jobs:
     - name: Checkout repository code
       uses: actions/checkout@v4
 
-    - name: Clone webview repository for webview.h
-      shell: cmd
-      run: | echo ok
-
     - name: Compile CatBrowser.exe
       shell: cmd
       run: |
