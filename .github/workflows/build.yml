@@ -1,9 +1,8 @@
-name: Build and Release CatBrowser
+name: Build CatBrowser Windows EXE
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
@@ -31,13 +30,20 @@ jobs:
       run: |
         g++ main.cpp -o CatBrowser.exe -std=c++14 -DWEBVIEW_WINAPI -Itemp_webview/core/include -Itemp_webview/core/include/webview -I"%WEBVIEW2_INC%" -static -static-libgcc -static-libstdc++ -lshlwapi -lole32 -loleaut32 -luuid -lshell32 -lgdi32 -lversion -lcomctl32 -mwindows 2>&1
 
-    - name: Package Release Assets
-      shell: powershell
-      run: |
-        Compress-Archive -Path CatBrowser.exe, cathome.html, sammy.html, sammy_2.png -DestinationPath CatBrowser-v1.0.zip -Force
-
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
+    - name: Upload Finished Executable Artifact
+      uses: actions/upload-artifact@v4
       with:
-        files: CatBrowser-v1.0.zip
+        name: CatBrowser-Windows
+        path: |
+          CatBrowser.exe
+          cathome.html
+          sammy.html
+          sammy_2.png
+
+    - name: Output Artifact Page URL
+      shell: bash
+      run: |
+        RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        echo "### Artifact Download Location" >> $GITHUB_STEP_SUMMARY
+        echo "You can download **CatBrowser-Windows** at the bottom of this page:" >> $GITHUB_STEP_SUMMARY
+        echo "[$RUN_URL]($RUN_URL)" >> $GITHUB_STEP_SUMMARY
