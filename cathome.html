@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CatBrowser</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #202124; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+    h1 { margin-bottom: 20px; font-size: 2.5rem; }
+    .search-container { display: flex; width: 80%; max-width: 600px; margin-bottom: 20px; }
+    input[type="text"] { flex: 1; padding: 12px 16px; font-size: 16px; border: none; border-radius: 4px 0 0 4px; outline: none; }
+    button { padding: 12px 20px; font-size: 16px; border: none; background-color: #1a73e8; color: white; cursor: pointer; border-radius: 0 4px 4px 0; }
+    button:hover { background-color: #1557b0; }
+    .shortcuts { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; max-width: 600px; }
+    .shortcut-btn { padding: 8px 14px; background-color: #3c4043; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    .shortcut-btn:hover { background-color: #5f6368; }
+  </style>
+</head>
+<body>
+
+  <h1>CatBrowser</h1>
+  <div class="search-container">
+    <input type="text" id="urlInput" placeholder="Enter URL or search term...">
+    <button onclick="navigate()">GO</button>
+  </div>
+
+  <div class="shortcuts">
+    <button class="shortcut-btn" onclick="loadUrl('https://www.google.com')">Google</button>
+    <button class="shortcut-btn" onclick="loadUrl('https://www.windows93.net')">Windows 93</button>
+    <button class="shortcut-btn" onclick="loadUrl('https://www.youtube.com/watch?v=IxX_QHay02M&list=RDIxX_QHay02M&start_radio=1')">OIIA OIIA</button>
+    <button class="shortcut-btn" onclick="loadUrl('https://www.nyan.cat')">Nyan Cat</button>
+    <button class="shortcut-btn" onclick="loadUrl('https://youtube.com/shorts/beh_SP52TaQ?si=xy5XKaQ9cw3jVqaM')">the best thing ever</button>
+    <button class="shortcut-btn" onclick="goHomeNative()">Home</button>
+  </div>
+
+  <script>
+    function loadUrl(url) {
+      window.location.href = url;
+    }
+
+    function navigate() {
+      let input = document.getElementById('urlInput').value.trim();
+      if (!input) return;
+      if (!input.startsWith('http://') && !input.startsWith('https://')) {
+        if (input.includes('.') && !input.includes(' ')) {
+          input = 'https://' + input;
+        } else {
+          input = 'https://www.google.com/search?q=' + encodeURIComponent(input);
+        }
+      }
+      loadUrl(input);
+    }
+
+    document.getElementById('urlInput').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') navigate();
+    });
+
+    function goHomeNative() {
+      if (window.goHome) {
+        window.goHome();
+      } else {
+        window.location.href = 'cathome.html';
+      }
+    }
+  </script>
+</body>
+</html>
