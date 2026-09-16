@@ -4,7 +4,6 @@
 #include <string>
 #include <thread>
 
-#define WEBVIEW_WINAPI
 #define WEBVIEW_IMPLEMENTATION
 #include "webview.h"
 
@@ -14,7 +13,7 @@
 
 NOTIFYICONDATAA g_nid = { 0 };
 HWND g_hwnd = NULL;
-webview_t g_webview_ptr = NULL;
+webview::webview* g_webview_ptr = nullptr;
 std::string g_home_path = "";
 
 std::string get_executable_dir() {
@@ -49,7 +48,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         switch (LOWORD(wParam)) {
         case ID_TRAY_HOME:
             if (g_webview_ptr) {
-                webview_navigate(g_webview_ptr, g_home_path.c_str());
+                g_webview_ptr->navigate(g_home_path);
             }
             break;
         case ID_TRAY_EXIT:
@@ -88,52 +87,43 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     lstrcpyA(g_nid.szTip, "CatBrowser");
     Shell_NotifyIconA(NIM_ADD, &g_nid);
 
-    webview_t w = webview_create(0, NULL);
-    g_webview_ptr = w;
+    webview::webview w(true, nullptr);
+    g_webview_ptr = &w;
 
-    webview_set_title(w, "CatBrowser");
-    webview_set_size(w, 1024, 768, WEBVIEW_HINT_NONE);
+    w.set_title("CatBrowser");
+    w.set_size(1024, 768, WEBVIEW_HINT_NONE);
 
     std::string exe_dir = get_executable_dir();
     g_home_path = "file:///" + exe_dir + "/cathome.html";
 
-    // JS Binding: Go Home
-    webview_bind(w, "goHome", [](const char *seq, const char *req, void *arg) {
-        webview_t instance = (webview_t)arg;
-        webview_navigate(instance, g_home_path.c_str());
-        webview_return(instance, seq, 0, "{}");
-    }, w);
+    w.bind("goHome", [&w](std::string seq, std::string req, void *arg) {
+        w.navigate(g_home_path);
+        w.resolve(seq, 0, "{}");
+    });
 
-    // JS Binding: Open file in Notepad
-    webview_bind(w, "openInNotepad", [](const char *seq, const char *req, void *arg) {
-        webview_t instance = (webview_t)arg;
-        std::string req_str = req ? req : "";
-        std::string filename = req_str.length() > 4 ? req_str.substr(2, req_str.length() - 4) : ""; 
-        std::string target_file = get_executable_dir() + "\\" + filename;
+    w.bind("openInNotepad", [&w, exe_dir](std::string seq, std::string req, void *arg) {
+        std::string filename = req.length() > 4 ? req.substr(2, req.length() - 4) : ""; 
+        std::string target_file = exe_dir + "\\" + filename;
         open_in_notepad(target_file);
-        webview_return(instance, seq, 0, "{}");
-    }, w);
+        w.resolve(seq, 0, "{}");
+    });
 
-    // JS Binding: Open Sammy Window
-    webview_bind(w, "openSammyWindow", [](const char *seq, const char *req, void *arg) {
-        webview_t instance = (webview_t)arg;
+    w.bind("openSammyWindow", [&w](std::string seq, std::string req, void *arg) {
         std::string sammy_path = "file:///" + get_executable_dir() + "/sammy.html";
         
         std::thread([sammy_path]() {
-            webview_t sammy_win = webview_create(0, NULL);
-            webview_set_title(sammy_win, "About Sammy");
-            webview_set_size(sammy_win, 650, 700, WEBVIEW_HINT_NONE);
-            webview_navigate(sammy_win, sammy_path.c_str());
-            webview_run(sammy_win);
-            webview_destroy(sammy_win);
+            webview::webview sammy_win(true, nullptr);
+            sammy_win.set_title("About Sammy");
+            sammy_win.set_size(650, 700, WEBVIEW_HINT_NONE);
+            sammy_win.navigate(sammy_path);
+            sammy_win.run();
         }).detach();
 
-        webview_return(instance, seq, 0, "{}");
-    }, w);
+        w.resolve(seq, 0, "{}");
+    });
 
-    webview_navigate(w, g_home_path.c_str());
-    webview_run(w);
-    webview_destroy(w);
+    w.navigate(g_home_path);
+    w.run();
 
     return 0;
 }
