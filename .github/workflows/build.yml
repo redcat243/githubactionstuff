@@ -16,7 +16,7 @@ jobs:
     - name: Compile CatBrowser.exe
       shell: cmd
       run: |
-        g++ main.cpp -o CatBrowser.exe -std=c++14 -ole32 -oleaut32 -luuid -lshell32 -lgdi32 -lversion -lcomctl32 -mwindows 2>&1
+        g++ main.cpp -o CatBrowser.exe -std=c++14 -DWEBVIEW_WINAPI -lole32 -loleaut32 -luuid -lshell32 -lgdi32 -lversion -lcomctl32 -mwindows 2>&1
 
     - name: Upload Finished Executable
       uses: actions/upload-artifact@v4
