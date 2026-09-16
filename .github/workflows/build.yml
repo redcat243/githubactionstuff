@@ -13,11 +13,6 @@ jobs:
     - name: Checkout repository code
       uses: actions/checkout@v4
 
-    - name: Set up MinGW
-      uses: egor-tisin/setup-mingw@v2
-      with:
-        version: 12.2.0
-
     - name: Compile CatBrowser.exe
       run: |
         g++ main.cpp -o CatBrowser.exe -std=c++11 -lwebview -ole32 -oleaut32 -luuid -lshell32 -lgdi32 -mwindows
