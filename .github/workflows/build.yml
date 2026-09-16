@@ -13,12 +13,24 @@ jobs:
     - name: Checkout repository code
       uses: actions/checkout@v4
 
+    - name: Clone Webview Headers
+      shell: cmd
+      run: |
+        git clone --depth 1 https://github.com/webview/webview.git temp_webview
+
+    - name: Download Microsoft WebView2 SDK
+      shell: powershell
+      run: |
+        nuget install Microsoft.Web.WebView2 -OutputDirectory webview2_sdk
+        $inc = (Get-ChildItem -Path "webview2_sdk" -Filter "include" -Recurse | Select-Object -First 1).FullName
+        Write-Output "WEBVIEW2_INC=$inc" >> $env:GITHUB_ENV
+
     - name: Compile CatBrowser.exe
       shell: cmd
       run: |
-        g++ main.cpp -o CatBrowser.exe -std=c++14 -DWEBVIEW_WINAPI -lole32 -loleaut32 -luuid -lshell32 -lgdi32 -lversion -lcomctl32 -mwindows 2>&1
+        g++ main.cpp -o CatBrowser.exe -std=c++14 -DWEBVIEW_WINAPI -Itemp_webview/core/include -Itemp_webview/core/include/webview -I"%WEBVIEW2_INC%" -lole32 -loleaut32 -luuid -lshell32 -lgdi32 -lversion -lcomctl32 -mwindows 2>&1
 
-    - name: Upload Finished Executable
+    - name: Upload Executable
       uses: actions/upload-artifact@v4
       with:
         name: CatBrowser-Windows
