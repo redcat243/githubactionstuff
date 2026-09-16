@@ -96,19 +96,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     std::string exe_dir = get_executable_dir();
     g_home_path = "file:///" + exe_dir + "/cathome.html";
 
-    w.bind("goHome", [&w](std::string seq, std::string req, void *arg) {
+    // Synchronous bindings return a std::string to resolve the JavaScript Promise
+    w.bind("goHome", [&w](const std::string &req) -> std::string {
         w.navigate(g_home_path);
-        w.resolve(seq, 0, "{}");
+        return "{}";
     });
 
-    w.bind("openInNotepad", [&w, exe_dir](std::string seq, std::string req, void *arg) {
+    w.bind("openInNotepad", [exe_dir](const std::string &req) -> std::string {
         std::string filename = req.length() > 4 ? req.substr(2, req.length() - 4) : ""; 
         std::string target_file = exe_dir + "\\" + filename;
         open_in_notepad(target_file);
-        w.resolve(seq, 0, "{}");
+        return "{}";
     });
 
-    w.bind("openSammyWindow", [&w](std::string seq, std::string req, void *arg) {
+    w.bind("openSammyWindow", [](const std::string &req) -> std::string {
         std::string sammy_path = "file:///" + get_executable_dir() + "/sammy.html";
         
         std::thread([sammy_path]() {
@@ -119,7 +120,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             sammy_win.run();
         }).detach();
 
-        w.resolve(seq, 0, "{}");
+        return "{}";
     });
 
     w.navigate(g_home_path);
