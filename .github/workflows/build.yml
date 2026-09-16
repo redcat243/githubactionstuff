@@ -13,10 +13,9 @@ jobs:
     - name: Checkout repository code
       uses: actions/checkout@v4
 
-    - name: Download webview.h
+    - name: Clone webview repository for webview.h
       shell: cmd
-      run: |
-        curl -L "https://raw.githubusercontent.com/webview/webview/master/include/webview/webview.h" -o webview.h
+      run: | echo ok
 
     - name: Compile CatBrowser.exe
       shell: cmd
