@@ -2,6 +2,10 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <string>
+#include <thread>
+
+#define WEBVIEW_IMPLEMENTATION
+#define WEBVIEW_WINAPI
 #include "webview.h"
 
 #define WM_TRAYICON (WM_USER + 1)
@@ -10,7 +14,7 @@
 
 NOTIFYICONDATAA g_nid = { 0 };
 HWND g_hwnd = NULL;
-webview::webview* g_webview_ptr = nullptr;
+webview_t g_webview_ptr = NULL;
 std::string g_home_path = "";
 
 // Helper to get executable directory on Windows
@@ -22,7 +26,7 @@ std::string get_executable_dir() {
     return path.substr(0, pos);
 }
 
-// Function to open any file (like an RTFD or TXT note) in Notepad
+// Function to open any file in Notepad
 void open_in_notepad(const std::string& filepath) {
     ShellExecuteA(NULL, "open", "notepad.exe", filepath.c_str(), NULL, SW_SHOWNORMAL);
 }
@@ -48,7 +52,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         switch (LOWORD(wParam)) {
         case ID_TRAY_HOME:
             if (g_webview_ptr) {
-                g_webview_ptr->navigate(g_home_path);
+                webview_navigate(g_webview_ptr, g_home_path.c_str());
             }
             break;
         case ID_TRAY_EXIT:
@@ -70,7 +74,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-// 1. Create invisible background window to handle System Tray events
+    // 1. Create background window for System Tray events
     WNDCLASSA wc = { 0 };
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
@@ -79,59 +83,63 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     g_hwnd = CreateWindowA("CatBrowserTrayClass", "CatBrowser Tray Host", 0, 0, 0, 0, 0, NULL, NULL, hInstance, NULL);
 
-    // 2. Initialize System Tray Icon (uses default application icon or custom icon.ico if present)
+    // 2. Initialize System Tray Icon
     g_nid.cbSize = sizeof(NOTIFYICONDATAA);
     g_nid.hWnd = g_hwnd;
     g_nid.uID = 1;
     g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     g_nid.uCallbackMessage = WM_TRAYICON;
-    g_nid.hIcon = LoadIcon(hInstance, IDI_APPLICATION); // Replace with custom icon handle if compiling with .rc resource file
+    g_nid.hIcon = LoadIcon(hInstance, IDI_APPLICATION);
     lstrcpyA(g_nid.szTip, "CatBrowser");
     Shell_NotifyIconA(NIM_ADD, &g_nid);
 
     // 3. Setup Native WebView Window
-    webview::webview w(true, nullptr);
-    g_webview_ptr = &w;
+    webview_t w = webview_create(0, NULL);
+    g_webview_ptr = w;
 
-    w.set_title("CatBrowser");
-    w.set_size(1024, 768, WEBVIEW_HINT_NONE);
+    webview_set_title(w, "CatBrowser");
+    webview_set_size(w, 1024, 768, WEBVIEW_HINT_NONE);
 
     std::string exe_dir = get_executable_dir();
     g_home_path = "file:///" + exe_dir + "/cathome.html";
 
     // JS Binding: Navigate Home
-    w.bind("goHome", [&w](std::string seq, std::string req, void *arg) {
-        w.navigate(g_home_path);
-        w.resolve(seq, 0, "{}");
-    });
+    webview_bind(w, "goHome", [](const char *seq, const char *req, void *arg) {
+        webview_t instance = (webview_t)arg;
+        webview_navigate(instance, g_home_path.c_str());
+        webview_return(instance, seq, 0, "{}");
+    }, w);
 
-    // JS Binding: Open specific RTFD / TXT document in Notepad directly
-    w.bind("openInNotepad", [exe_dir](std::string seq, std::string req, void *arg) {
-        // Trims JS array syntax or string quotes from incoming parameters
-        std::string filename = req.substr(2, req.length() - 4); 
-        std::string target_file = exe_dir + "\\" + filename;
+    // JS Binding: Open file in Notepad
+    webview_bind(w, "openInNotepad", [](const char *seq, const char *req, void *arg) {
+        webview_t instance = (webview_t)arg;
+        std::string req_str = req;
+        std::string filename = req_str.length() > 4 ? req_str.substr(2, req_str.length() - 4) : ""; 
+        std::string target_file = get_executable_dir() + "\\" + filename;
         open_in_notepad(target_file);
-        w.resolve(seq, 0, "{}");
-    });
+        webview_return(instance, seq, 0, "{}");
+    }, w);
 
-    // JS Binding: Open sammy.html in a new window
-w.bind("openSammyWindow", [&hInstance](std::string seq, std::string req, void *arg) {
-    std::string sammy_path = "file:///" + get_executable_dir() + "/sammy.html";
-    
-    // Launch a new thread so the new window runs independently
-    std::thread([sammy_path]() {
-        webview::webview sammy_win(true, nullptr);
-        sammy_win.set_title("About Sammy");
-        sammy_win.set_size(650, 700, WEBVIEW_HINT_NONE);
-        sammy_win.navigate(sammy_path);
-        sammy_win.run();
-    }).detach();
+    // JS Binding: Open Sammy page in secondary window
+    webview_bind(w, "openSammyWindow", [](const char *seq, const char *req, void *arg) {
+        webview_t instance = (webview_t)arg;
+        std::string sammy_path = "file:///" + get_executable_dir() + "/sammy.html";
+        
+        std::thread([sammy_path]() {
+            webview_t sammy_win = webview_create(0, NULL);
+            webview_set_title(sammy_win, "About Sammy");
+            webview_set_size(sammy_win, 650, 700, WEBVIEW_HINT_NONE);
+            webview_navigate(sammy_win, sammy_path.c_str());
+            webview_run(sammy_win);
+            webview_destroy(sammy_win);
+        }).detach();
 
-    g_webview_ptr->resolve(seq, 0, "{}");
-});
+        webview_return(instance, seq, 0, "{}");
+    }, w);
 
-    w.navigate(g_home_path);
-    w.run();
+    webview_navigate(w, g_home_path.c_str());
+    webview_run(w);
+    webview_destroy(w);
 
     return 0;
 }
