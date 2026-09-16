@@ -1,0 +1,33 @@
+name: Build CatBrowser Windows EXE
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository code
+      uses: actions/checkout@v4
+
+    - name: Set up MinGW
+      uses: egor-tisin/setup-mingw@v2
+      with:
+        version: 12.2.0
+
+    - name: Compile CatBrowser.exe
+      run: |
+        g++ main.cpp -o CatBrowser.exe -std=c++11 -lwebview -ole32 -oleaut32 -luuid -lshell32 -lgdi32 -mwindows
+
+    - name: Upload Finished Executable
+      uses: actions/upload-artifact@v4
+      with:
+        name: CatBrowser-Windows
+        path: |
+          CatBrowser.exe
+          cathome.html
+          sammy.html
+          sammy_2.png
