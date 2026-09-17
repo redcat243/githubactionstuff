@@ -3,6 +3,7 @@
 #include <shellapi.h>
 #include <string>
 #include <thread>
+#include <algorithm>
 
 #define WEBVIEW_IMPLEMENTATION
 #include "webview.h"
@@ -24,6 +25,15 @@ std::string get_executable_dir() {
     return path.substr(0, pos);
 }
 
+// Converts C:\Path\file.html to file:///C:/Path/file.html
+std::string path_to_file_url(const std::string& path) {
+    std::string url = path;
+    for (char &c : url) {
+        if (c == '\\') c = '/';
+    }
+    return "file:///" + url;
+}
+
 void open_in_notepad(const std::string& filepath) {
     ShellExecuteA(NULL, "open", "notepad.exe", filepath.c_str(), NULL, SW_SHOWNORMAL);
 }
@@ -31,7 +41,7 @@ void open_in_notepad(const std::string& filepath) {
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_TRAYICON:
-        if (lParam == WM_RBUTTONUP) {
+        if (lParam == WM_RBUTTONUP || lParam == WM_LBUTTONUP) {
             POINT pt;
             GetCursorPos(&pt);
             HMENU hMenu = CreatePopupMenu();
@@ -39,22 +49,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             AppendMenuA(hMenu, MF_STRING, ID_TRAY_EXIT, "Exit CatBrowser");
 
             SetForegroundWindow(hwnd);
-            TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+            // Synchronous menu handling prevents event loop deadlocks
+            int cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY, pt.x, pt.y, 0, hwnd, NULL);
             DestroyMenu(hMenu);
-        }
-        break;
 
-    case WM_COMMAND:
-        switch (LOWORD(wParam)) {
-        case ID_TRAY_HOME:
-            if (g_webview_ptr) {
-                g_webview_ptr->navigate(g_home_path);
+            if (cmd == ID_TRAY_HOME) {
+                if (g_webview_ptr) {
+                    g_webview_ptr->navigate(g_home_path);
+                }
+            } else if (cmd == ID_TRAY_EXIT) {
+                Shell_NotifyIconA(NIM_DELETE, &g_nid);
+                PostQuitMessage(0);
+                std::exit(0);
             }
-            break;
-        case ID_TRAY_EXIT:
-            Shell_NotifyIconA(NIM_DELETE, &g_nid);
-            PostQuitMessage(0);
-            break;
         }
         break;
 
@@ -70,6 +77,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    OleInitialize(NULL);
+
     WNDCLASSA wc = { 0 };
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
@@ -83,7 +92,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     g_nid.uID = 1;
     g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     g_nid.uCallbackMessage = WM_TRAYICON;
-    g_nid.hIcon = LoadIcon(hInstance, IDI_APPLICATION);
+    // Load custom embedded icon from resource ID 101
+    g_nid.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(101));
     lstrcpyA(g_nid.szTip, "CatBrowser");
     Shell_NotifyIconA(NIM_ADD, &g_nid);
 
@@ -94,9 +104,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     w.set_size(1024, 768, WEBVIEW_HINT_NONE);
 
     std::string exe_dir = get_executable_dir();
-    g_home_path = "file:///" + exe_dir + "/cathome.html";
+    g_home_path = path_to_file_url(exe_dir + "/cathome.html");
 
-    // Synchronous bindings return a std::string to resolve the JavaScript Promise
     w.bind("goHome", [&w](const std::string &req) -> std::string {
         w.navigate(g_home_path);
         return "{}";
@@ -110,14 +119,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     });
 
     w.bind("openSammyWindow", [](const std::string &req) -> std::string {
-        std::string sammy_path = "file:///" + get_executable_dir() + "/sammy.html";
+        std::string sammy_path = path_to_file_url(get_executable_dir() + "/sammy.html");
         
         std::thread([sammy_path]() {
+            // Must initialize COM on the new thread for WebView2
+            OleInitialize(NULL);
+
             webview::webview sammy_win(true, nullptr);
             sammy_win.set_title("About Sammy");
             sammy_win.set_size(650, 700, WEBVIEW_HINT_NONE);
             sammy_win.navigate(sammy_path);
             sammy_win.run();
+
+            OleUninitialize();
         }).detach();
 
         return "{}";
@@ -126,5 +140,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     w.navigate(g_home_path);
     w.run();
 
+    OleUninitialize();
     return 0;
 }
